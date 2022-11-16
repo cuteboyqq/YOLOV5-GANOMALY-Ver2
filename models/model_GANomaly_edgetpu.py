@@ -16,14 +16,17 @@ import os
 
 import os
 import pathlib
-'''
+
 from pycoral.utils import edgetpu
 from pycoral.utils import dataset
 from pycoral.adapters import common
 from pycoral.adapters import classify
-'''
-from PIL import Image
 
+#from PIL import Image
+from PIL import Image
+from matplotlib import pyplot as plt
+
+#import tensorflow as tf
 
 class GANomaly_Detect():
     def __init__(self,
@@ -32,7 +35,8 @@ class GANomaly_Detect():
                  save_image=False,
                  show_log=False,
                  tflite=False,
-                 edgetpu=True):
+                 edgetpu=True,
+                 isize=32):
         super().__init__()
         self.model_dir = model_dir
         self.tflite = tflite
@@ -42,7 +46,10 @@ class GANomaly_Detect():
         self.interpreter = self.get_interpreter()
         self.save_image = save_image
         self.show_log = show_log
-        
+        self.isize = isize
+    def return_interpreter(self):
+        return self.interpreter
+    
     def Pycoral_Edgetpu(self):
         # Specify the TensorFlow model, labels, and image
         #script_dir = pathlib.Path(__file__).parent.absolute()
@@ -79,6 +86,7 @@ class GANomaly_Detect():
             try:  # https://coral.ai/docs/edgetpu/tflite-python/#update-existing-tf-lite-code-for-the-edge-tpu
                 from tflite_runtime.interpreter import Interpreter, load_delegate
                 self.Interpreter = Interpreter
+                self.load_delegate = load_delegate
                 print('try successful')
             except ImportError:
                 print('ImportError')
@@ -111,6 +119,8 @@ class GANomaly_Detect():
     
     def detect_image(self, w, im, cnt=1):
         #SHOW_LOG=False
+        self.USE_PIL = True
+        self.USE_OPENCV = False
         self.INFER=False
         self.ONLY_DETECT_ONE_IMAGE=True
         if self.interpreter is None:
@@ -137,6 +147,17 @@ class GANomaly_Detect():
             #plt.imshow(im)
             #plt.show()
         elif self.ONLY_DETECT_ONE_IMAGE:
+            if self.USE_PIL:
+                im = Image.fromarray(np.uint8(im))
+                im = im.convert('RGB')
+                im = im.resize((self.isize,self.isize))
+                im = np.asarray(im)
+                self.input_img = im
+            if self.USE_OPENCV:
+                im = cv2.imread(im)
+                im = cv2.resize(im, (self.isize, self.isize))
+                self.input_img = im
+                im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
             #im = cv2.imread(im)
             #im = cv2.resize(im, (64, 64))
             #input_img = im
@@ -156,8 +177,9 @@ class GANomaly_Detect():
         #img = img / 255.0
         
         #im = Image.fromarray((im * 255).astype('uint8'))
-        self.input_img = im
-        im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+        #self.input_img = im
+        #Alister add 2022-11-09
+        #im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
         im = im/255.0
         im = im[np.newaxis, ...].astype(np.float32)
         if self.show_log:
@@ -170,13 +192,13 @@ class GANomaly_Detect():
         #print('im:{}'.format(im.shape))
         #print('im: {}'.format(im))
         input = self.input_details[0]
-        self.int8 = input['dtype'] == np.uint8  # is TFLite quantized uint8 model (np.uint8)
+        self.int8 = input['dtype'] == np.int8  # is TFLite quantized uint8 model (np.uint8)
         #int32 = input['dtype'] == np.int32  # is TFLite quantized uint8 model (np.uint8)
         #print('input[dtype] : {}'.format(input['dtype']))
         if self.int8:
             #print('is TFLite quantized uint8 model')
             self.scale, self.zero_point = input['quantization']
-            im = (im / self.scale + self.zero_point).astype(np.uint8)  # de-scale
+            im = (im / self.scale + self.zero_point).astype(np.int8)  # de-scale
             #im = im.astype(np.uint8)
             if self.show_log:
                 print('after de-scale {}'.format(im))
@@ -188,7 +210,7 @@ class GANomaly_Detect():
             x = self.interpreter.get_tensor(output['index'])
             #print(x.shape)
             #print(x)
-            if x.shape[1]==64:
+            if x.shape[1]==self.isize:
                 #print('get out images')
                 
                 self.scale, self.zero_point = output['quantization']
@@ -225,8 +247,8 @@ class GANomaly_Detect():
             print('input image : {}'.format(self.input_img.shape))
             print('gen_img : {}'.format(self.gen_img))
             print('gen_img : {}'.format(self.gen_img.shape))
-        self.latent_i = y[1]
-        self.latent_o = y[2]
+        self.latent_i = y[0]
+        self.latent_o = y[1]
         if self.show_log:
             print('latent_i : {}'.format(self.latent_i))
             print('latent_o : {}'.format(self.latent_o))
@@ -246,7 +268,7 @@ class GANomaly_Detect():
         def l1_loss(A,B):
             return np.mean((abs(A-B)).flatten())
         def l2_loss(A,B):
-            return np.mean(np.sqrt((A-B)*(A-B)).flatten())
+            return np.mean((A-B)*(A-B))
         # tf loss
         #l2_loss = tf.keras.losses.MeanSquaredError()
         #l1_loss = tf.keras.losses. MeanAbsoluteError()
