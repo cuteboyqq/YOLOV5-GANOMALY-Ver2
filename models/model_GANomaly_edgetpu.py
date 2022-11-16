@@ -157,6 +157,8 @@ class GANomaly_Detect():
         
         #im = Image.fromarray((im * 255).astype('uint8'))
         self.input_img = im
+        im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+        im = im/255.0
         im = im[np.newaxis, ...].astype(np.float32)
         if self.show_log:
             print('im : {}'.format(im.shape))
