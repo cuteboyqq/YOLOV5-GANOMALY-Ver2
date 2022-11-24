@@ -119,8 +119,8 @@ class GANomaly_Detect():
     
     def detect_image(self, w, im, cnt=1):
         #SHOW_LOG=False
-        self.USE_PIL = True
-        self.USE_OPENCV = False
+        self.USE_PIL = False
+        self.USE_OPENCV = True
         self.INFER=False
         self.ONLY_DETECT_ONE_IMAGE=True
         if self.interpreter is None:
@@ -154,10 +154,20 @@ class GANomaly_Detect():
                 im = np.asarray(im)
                 self.input_img = im
             if self.USE_OPENCV:
-                im = cv2.imread(im)
-                im = cv2.resize(im, (self.isize, self.isize))
+                #im = cv2.imread(im)
+                #im = cv2.resize(im, (self.isize, self.isize))
+                #self.input_img = im
+                #im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+                
+                #im_o = cv2.imread(im)
+                im_ori = cv2.resize(im, (self.isize, self.isize),interpolation=cv2.INTER_LINEAR) #lininear
+                #im = cv2.cvtColor(im_ori, cv2.COLOR_BGR2RGB)
+                im = im_ori.transpose((2,0,1))[::-1] #HWC to CHW , BGR to RGB
+                
+                #im = im_ori[::-1]
+                im = np.ascontiguousarray(im)
+                im = np.transpose(im,[1,2,0])
                 self.input_img = im
-                im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
             #im = cv2.imread(im)
             #im = cv2.resize(im, (64, 64))
             #input_img = im
@@ -165,7 +175,7 @@ class GANomaly_Detect():
             #cv2.imshow('ori_image',im)
                 filename = 'ori_image_' + str(cnt) + '.jpg'
                 file_path = os.path.join('./runs/detect/ori_images', filename)
-                cv2.imwrite(file_path,im)
+                cv2.imwrite(file_path,im_ori)
                 #cv2.waitKey(10)
             
         #im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
@@ -180,8 +190,10 @@ class GANomaly_Detect():
         #self.input_img = im
         #Alister add 2022-11-09
         #im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+        #im = im/255.0
+        #im = im[np.newaxis, ...].astype(np.float32)
+        im = np.expand_dims(im, axis=0).astype(np.float32)
         im = im/255.0
-        im = im[np.newaxis, ...].astype(np.float32)
         if self.show_log:
             print('im : {}'.format(im.shape))
         
@@ -220,7 +232,10 @@ class GANomaly_Detect():
                 #x = tf.squeeze(x)
                 #x = x.numpy()
                 self.gen_img = x*255
-                self.gen_img = np.squeeze(self.gen_img)
+                #self.gen_img = np.squeeze(self.gen_img)
+                
+                self.gen_img_for_loss = np.squeeze(self.gen_img)
+                self.gen_img = cv2.cvtColor(self.gen_img_for_loss, cv2.COLOR_RGB2BGR)
                 #print('after squeeze & numpy x : {}'.format(x))
                 if self.save_image:
                     #cv2.imshow('out_image',gen_img)
@@ -248,7 +263,7 @@ class GANomaly_Detect():
             print('gen_img : {}'.format(self.gen_img))
             print('gen_img : {}'.format(self.gen_img.shape))
         self.latent_i = y[0]
-        self.latent_o = y[1]
+        self.latent_o = y[2]
         if self.show_log:
             print('latent_i : {}'.format(self.latent_i))
             print('latent_o : {}'.format(self.latent_o))
@@ -263,10 +278,10 @@ class GANomaly_Detect():
         if self.show_log:
             print('[g_loss]: Start normalize input_img and gen_img')
         self.input_img = (self.input_img)/255.0
-        self.gen_img = (self.gen_img)/255.0
+        self.gen_img_for_loss = (self.gen_img_for_loss)/255.0
         
         def l1_loss(A,B):
-            return np.mean((abs(A-B)).flatten())
+            return np.mean((abs(A-B)))
         def l2_loss(A,B):
             return np.mean((A-B)*(A-B))
         # tf loss
@@ -284,15 +299,15 @@ class GANomaly_Detect():
         #l_bce = bce_loss
         
         #err_g_adv = l_adv(feat_real, feat_fake)
-        self.err_g_con = self.l_con(self.input_img, self.gen_img)
+        self.err_g_con = self.l_con(self.input_img, self.gen_img_for_loss)
        
         #err_g_enc = l_enc(latent_i, latent_o)
         self.err_g_enc = self.l_enc(self.latent_i,self.latent_o)
        
-        g_loss = self.err_g_con * 50 + \
+        g_loss_ = self.err_g_con * 50 + \
                  self.err_g_enc * 1
        
-        return g_loss
+        return g_loss_
     
     def plot_loss_distribution(self, SHOW_MAX_NUM,positive_loss,defeat_loss):
         # Importing packages
