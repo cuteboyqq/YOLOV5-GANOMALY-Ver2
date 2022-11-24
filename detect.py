@@ -48,6 +48,9 @@ from utils.torch_utils import select_device, smart_inference_mode
 
 from models.model_GANomaly_edgetpu import *
 
+import datetime
+import time
+
 @smart_inference_mode()
 def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
         source=ROOT / 'data/images',  # file/dir/URL/glob/screen/0(webcam)
@@ -76,7 +79,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
         half=False,  # use FP16 half-precision inference
         dnn=False,  # use OpenCV DNN for ONNX inference
         vid_stride=1,  # video frame-rate stride
-        isize=64,
+        isize=32,
         nz=100,
         nc=3,
         ndf=64,
@@ -126,17 +129,21 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
                             train_dataset=opt.dataset,
                             valid_dataset=opt.dataset,
                             test_dataset=None)
-        w=r'/home/ali/GitHub_Code/cuteboyqq/GANomaly/GANomaly-tf2/export_model/G-uint8-20221104.tflite'
+        w=r'/home/ali/GitHub_Code/cuteboyqq/GANomaly/GANomaly-tf2/export_model/G-uint8-20221109_edgetpu.tflite'
         interpreter = ganomaly.load_model_tflite(w, tflite=True, edgetpu=False)
         '''
-        ganomaly = GANomaly_Detect(model_dir=r'/home/ali/GitHub_Code/cuteboyqq/GANomaly/GANomaly-tf2/export_model',
-                                    model_file=r'G-uint8-20221104.tflite',
+        print('isize : {}'.format(isize))
+        ganomaly = GANomaly_Detect(model_dir=r'/home/ali/Desktop/GANomaly-tf2/export_model/32-nz100-ndf64-ngf64',
+                                    model_file=r'ckpt-32-nz100-ndf64-ngf64-20221124-G-int8_edgetpu.tflite',
                                     save_image=False,
                                     show_log=False,
-                                    tflite=True,
-                                    edgetpu=False)
-        interpreter = ganomaly.get_interpreter()
-    
+                                    tflite=False,
+                                    edgetpu=True,
+                                    isize=isize)
+        #interpreter = ganomaly.get_interpreter()
+        print('[detect.py] Start ganomaly.return_interpreter')
+        interpreter = ganomaly.return_interpreter
+        print('[detect.py] Finish ganomaly.return_interpreter')
     # Dataloader
     bs = 1  # batch_size
     if webcam:
@@ -214,16 +221,21 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
                         label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
                         annotator.box_label(xyxy, label, color=colors(c, True))
                     if save_crop:
+                        #Alister add 2022-11-08
+                        #print('frame : {}'.format(int(frame)))
+                        #if int(c)==0:
                         save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
                     
                     #==================================
                     # GANomaly Alister 2022-10-13 add
                     #==================================
                     if GANOMALY:
+                        #start_time_ganomaly = datetime.datetime.now()
+                        start_time_ganomaly = time.time()
                         abnormal = 0
-                        crop = get_crop_image(xyxy, imc, BGR=True)
+                        crop = get_crop_image(xyxy, im0, BGR=True)
                         
-                        crop = cv2.resize(crop,(isize,isize),interpolation=cv2.INTER_AREA)
+                        #crop = cv2.resize(crop,(isize,isize),interpolation=cv2.INTER_LINEAR)
                         #crop = crop / 255.0
                         #crop = np.expand_dims(crop, axis=0)
                         print(crop.shape)
@@ -237,16 +249,12 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
                         #Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
                         #crop = Variable(crop.type(Tensor))
                         #loss = ganomaly.infer_cropimage(crop)
-                        w=r'/home/ali/GitHub_Code/cuteboyqq/GANomaly/GANomaly-tf2/export_model/G-uint8-20221104.tflite'
+                        w=r'/home/ali/Desktop/GANomaly-tf2/export_model/32-nz100-ndf64-ngf64/ckpt-32-nz100-ndf64-ngf64-20221124-G-int8_edgetpu.tflite'
                         #loss, gen_img = ganomaly.infer_cropimage_tflite(crop, w, interpreter, tflite=True, edgetpu=False)
                         loss, gen_img = ganomaly.detect_image(w, crop, cnt=1)
                         loss = int(loss*100)
                         loss = float(loss/100.0)
-                        #print(loss)
-                        if loss<=LOSS:
-                            print('normal-normal-normal-normal-normal-normal-normal {}-- {}'.format(loss,loss))
-                        else:
-                            print('ab-normal line--ab-normal line--ab-normal line--ab-normal line {}--{}'.format(loss,loss))
+                        
                         
                         if save_img or save_crop or view_img:  # Add bbox to image
                             c = int(cls)  # integer class
@@ -254,9 +262,16 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
                                 if loss<=LOSS:
                                     annotator.box_label(xyxy, "normal "+str(loss), color=(255,0,0))
                                 else:
-                                    annotator.box_label(xyxy, "abnormal "+str(loss), color=(0,255,255))
+                                    annotator.box_label(xyxy, "abnormal "+str(loss), color=(0,0,255))
                     
-                    
+                        during_time_ganomaly = time.time() - start_time_ganomaly
+                        during_time_ganomaly = int(during_time_ganomaly*1000)
+                        
+                        #print(loss)
+                        if loss<=LOSS:
+                            print('normal-normal-normal-normal-normal-normal-normal {}-- {}, time: {} ms'.format(loss,loss,during_time_ganomaly))
+                        else:
+                            print('ab-normal line--ab-normal line--ab-normal line--ab-normal line {}--{}, time: {} ms'.format(loss,loss,during_time_ganomaly))
             # Stream results
             im0 = annotator.result()
             if view_img:
@@ -344,7 +359,7 @@ def parse_opt():
     parser.add_argument('--lr', type=float, default=2e-4, help='GANomaly learning rate')
     parser.add_argument('--beta1', type=float, default=0.5, help='GANomaly beta1 for Adam optimizer')
     parser.add_argument('--GANOMALY', action='store_true', help='enable GANomaly')
-    parser.add_argument('--LOSS', type=float, default=6.0, help='GANomaly generator loss threshold')
+    parser.add_argument('--LOSS', type=float, default=4.0, help='GANomaly generator loss threshold')
     #========================================================================================
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
