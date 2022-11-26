@@ -124,6 +124,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
     
     #opt_tf = FLAGS
     if GANOMALY:
+        cc=1
         '''
         ganomaly = GANomaly(opt,
                             train_dataset=opt.dataset,
@@ -133,8 +134,8 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
         interpreter = ganomaly.load_model_tflite(w, tflite=True, edgetpu=False)
         '''
         print('isize : {}'.format(isize))
-        ganomaly = GANomaly_Detect(model_dir=r'/home/ali/Desktop/GANomaly-tf2/export_model/32-nz100-ndf64-ngf64',
-                                    model_file=r'ckpt-32-nz100-ndf64-ngf64-20221124-G-int8_edgetpu.tflite',
+        ganomaly = GANomaly_Detect(model_dir=r'/home/ali/Desktop/GANomaly-tf2/export_model/2022-11-25/32-nz100-ndf64-ngf64',
+                                    model_file=r'ckpt-32-nz100-ndf64-ngf64-20221125-G-int8_edgetpu.tflite',
                                     save_image=False,
                                     show_log=False,
                                     tflite=False,
@@ -233,8 +234,9 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
                         #start_time_ganomaly = datetime.datetime.now()
                         start_time_ganomaly = time.time()
                         abnormal = 0
-                        crop = get_crop_image(xyxy, im0, BGR=True)
-                        
+                        imc2 = im0.copy()
+                        crop = get_crop_image(xyxy,imc2, BGR=True)
+                        #crop = save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True, save=False)
                         #crop = cv2.resize(crop,(isize,isize),interpolation=cv2.INTER_LINEAR)
                         #crop = crop / 255.0
                         #crop = np.expand_dims(crop, axis=0)
@@ -249,29 +251,34 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
                         #Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
                         #crop = Variable(crop.type(Tensor))
                         #loss = ganomaly.infer_cropimage(crop)
-                        w=r'/home/ali/Desktop/GANomaly-tf2/export_model/32-nz100-ndf64-ngf64/ckpt-32-nz100-ndf64-ngf64-20221124-G-int8_edgetpu.tflite'
+                        w=r'/home/ali/Desktop/GANomaly-tf2/export_model/32-nz100-ndf64-ngf64/2022-11-25/ckpt-32-nz100-ndf64-ngf64-20221125-G-int8_edgetpu.tflite'
                         #loss, gen_img = ganomaly.infer_cropimage_tflite(crop, w, interpreter, tflite=True, edgetpu=False)
-                        loss, gen_img = ganomaly.detect_image(w, crop, cnt=1)
+                        loss, gen_img = ganomaly.detect_image(w, crop, cnt=cc)
+                        cc+=1
                         loss = int(loss*100)
                         loss = float(loss/100.0)
                         
                         
                         if save_img or save_crop or view_img:  # Add bbox to image
                             c = int(cls)  # integer class
-                            if c==0 or c==1:
-                                if loss<=LOSS:
-                                    annotator.box_label(xyxy, "normal "+str(loss), color=(255,0,0))
+                            if c==0:
+                                if loss>LOSS and conf < 0.40:
+                                    annotator.box_label(xyxy, "line abnormal "+str(loss) + " " + str(conf.numpy()), color=(0,0,255))
                                 else:
-                                    annotator.box_label(xyxy, "abnormal "+str(loss), color=(0,0,255))
+                                    annotator.box_label(xyxy, "line normal "+str(loss) + " " + str(conf.numpy()), color=(255,0,0))
                     
                         during_time_ganomaly = time.time() - start_time_ganomaly
                         during_time_ganomaly = int(during_time_ganomaly*1000)
                         
-                        #print(loss)
-                        if loss<=LOSS:
-                            print('normal-normal-normal-normal-normal-normal-normal {}-- {}, time: {} ms'.format(loss,loss,during_time_ganomaly))
-                        else:
+                        
+                            
+                        if loss>LOSS and conf < 0.40:
                             print('ab-normal line--ab-normal line--ab-normal line--ab-normal line {}--{}, time: {} ms'.format(loss,loss,during_time_ganomaly))
+                        else:
+                            print('normal-normal-normal-normal-normal-normal-normal {}-- {}, time: {} ms'.format(loss,loss,during_time_ganomaly))
+                    
+                        #input()
+                        
             # Stream results
             im0 = annotator.result()
             if view_img:
