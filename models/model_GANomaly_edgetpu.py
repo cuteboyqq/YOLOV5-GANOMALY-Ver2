@@ -158,9 +158,14 @@ class GANomaly_Detect():
                 #im = cv2.resize(im, (self.isize, self.isize))
                 #self.input_img = im
                 #im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
-                
+                if self.show_log:
+                    print('isize : {}'.format(self.isize))
                 #im_o = cv2.imread(im)
-                im_ori = cv2.resize(im, (self.isize, self.isize),interpolation=cv2.INTER_LINEAR) #lininear
+                #f = '/home/ali/Desktop/YOLOV5-rasp/temp.jpg'
+                #cv2.imwrite(f,im)
+                #im = cv2.imread(f)
+                im_ori = cv2.resize(im, (self.isize, self.isize)) #lininear
+                #im_ori = cv2.resize(im, (self.isize, self.isize),interpolation=cv2.INTER_LINEAR) #lininear
                 #im = cv2.cvtColor(im_ori, cv2.COLOR_BGR2RGB)
                 im = im_ori.transpose((2,0,1))[::-1] #HWC to CHW , BGR to RGB
                 
@@ -208,9 +213,9 @@ class GANomaly_Detect():
         #int32 = input['dtype'] == np.int32  # is TFLite quantized uint8 model (np.uint8)
         #print('input[dtype] : {}'.format(input['dtype']))
         if self.int8:
-            #print('is TFLite quantized uint8 model')
-            self.scale, self.zero_point = input['quantization']
-            im = (im / self.scale + self.zero_point).astype(np.int8)  # de-scale
+            #print('is TFLite quantized int8 model')
+            self.scale2, self.zero_point2 = input['quantization']
+            im = (im / self.scale2 + self.zero_point2).astype(np.int8)  # de-scale
             #im = im.astype(np.uint8)
             if self.show_log:
                 print('after de-scale {}'.format(im))
@@ -247,7 +252,7 @@ class GANomaly_Detect():
                 #gen_img = tf.transpose(gen_img, perm=[0,1,2])
                 #plt.imshow(gen_img)
                 #plt.show()
-            if self.int8:
+            else:
                 self.scale, self.zero_point = output['quantization']
                 x = (x.astype(np.float32)-self.zero_point) * self.scale  # re-scale
                 #x = x.astype(np.float32)
@@ -260,10 +265,10 @@ class GANomaly_Detect():
         if self.show_log:
             print('input image : {}'.format(self.input_img))
             print('input image : {}'.format(self.input_img.shape))
-            print('gen_img : {}'.format(self.gen_img))
-            print('gen_img : {}'.format(self.gen_img.shape))
+            print('gen_img : {}'.format(self.gen_img_for_loss))
+            print('gen_img : {}'.format(self.gen_img_for_loss.shape))
         self.latent_i = y[0]
-        self.latent_o = y[2]
+        self.latent_o = y[1]
         if self.show_log:
             print('latent_i : {}'.format(self.latent_i))
             print('latent_o : {}'.format(self.latent_o))
@@ -277,11 +282,11 @@ class GANomaly_Detect():
     def g_loss(self):
         if self.show_log:
             print('[g_loss]: Start normalize input_img and gen_img')
-        self.input_img = (self.input_img)/255.0
-        self.gen_img_for_loss = (self.gen_img_for_loss)/255.0
+        #self.input_img = (self.input_img)/255.0
+        #self.gen_img_for_loss = (self.gen_img_for_loss)/255.0
         
         def l1_loss(A,B):
-            return np.mean((abs(A-B)))
+            return np.mean((np.abs(A-B)))
         def l2_loss(A,B):
             return np.mean((A-B)*(A-B))
         # tf loss
@@ -299,7 +304,7 @@ class GANomaly_Detect():
         #l_bce = bce_loss
         
         #err_g_adv = l_adv(feat_real, feat_fake)
-        self.err_g_con = self.l_con(self.input_img, self.gen_img_for_loss)
+        self.err_g_con = self.l_con(self.input_img/255.0, self.gen_img_for_loss/255.0)
        
         #err_g_enc = l_enc(latent_i, latent_o)
         self.err_g_enc = self.l_enc(self.latent_i,self.latent_o)
