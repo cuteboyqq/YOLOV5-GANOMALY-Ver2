@@ -95,6 +95,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
         beta1=0.5,
         GANOMALY=False, #use GANoamly defeat detection
         LOSS=4,
+        timelog=False
 ):
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
@@ -134,10 +135,11 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
         interpreter = ganomaly.load_model_tflite(w, tflite=True, edgetpu=False)
         '''
         print('isize : {}'.format(isize))
-        ganomaly = GANomaly_Detect(model_dir=r'/home/ali/Desktop/GANomaly-tf2/export_model/2022-11-25/32-nz100-ndf64-ngf64',
-                                    model_file=r'ckpt-32-nz100-ndf64-ngf64-20221125-G-int8_edgetpu.tflite',
+        ganomaly = GANomaly_Detect(model_dir=r'/home/pi/Desktop/GANomaly-tf2/export_model/2022-12-07/multiple_models',
+                                    model_file=r'ckpt-32-nz100-ndf64-ngf64-20221207-prelu-upsample-G-int8_edgetpu.tflite',
                                     save_image=False,
                                     show_log=False,
+                                    show_detail_time_log=False,
                                     tflite=False,
                                     edgetpu=True,
                                     isize=isize)
@@ -145,6 +147,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
         print('[detect.py] Start ganomaly.return_interpreter')
         interpreter = ganomaly.return_interpreter
         print('[detect.py] Finish ganomaly.return_interpreter')
+        
     # Dataloader
     bs = 1  # batch_size
     if webcam:
@@ -234,8 +237,13 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
                         #start_time_ganomaly = datetime.datetime.now()
                         start_time_ganomaly = time.time()
                         abnormal = 0
-                        imc2 = im0.copy()
-                        crop = get_crop_image(xyxy,imc2, BGR=True)
+                        #imc2 = im0.copy()
+                        if timelog:
+                            start_crop_image = time.time()
+                        crop = get_crop_image(xyxy,imc, BGR=True)
+                        if timelog:
+                            during_crop_image = time.time() - start_crop_image
+                            print('[detect.py]during_crop_image : {} ms'.format(float(during_crop_image*1000)))
                         #crop = save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True, save=False)
                         #crop = cv2.resize(crop,(isize,isize),interpolation=cv2.INTER_LINEAR)
                         #crop = crop / 255.0
@@ -251,22 +259,31 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
                         #Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
                         #crop = Variable(crop.type(Tensor))
                         #loss = ganomaly.infer_cropimage(crop)
-                        w=r'/home/ali/Desktop/GANomaly-tf2/export_model/32-nz100-ndf64-ngf64/2022-11-25/ckpt-32-nz100-ndf64-ngf64-20221125-G-int8_edgetpu.tflite'
+                        #w=r'/home/ali/Desktop/GANomaly-tf2/export_model/2022-12-05/32-nz100-ndf64-ngf64-prelu-upsample-int8/ckpt-32-nz100-ndf64-ngf64-20221205-prelu-upsample-G-int8_edgetpu.tflite'
+                        w=r'ertertert'
                         #loss, gen_img = ganomaly.infer_cropimage_tflite(crop, w, interpreter, tflite=True, edgetpu=False)
+                        #time.sleep(0.001)
+                        if timelog:
+                            start_detect_image = time.time()
                         loss, gen_img = ganomaly.detect_image(w, crop, cnt=cc)
+                        if timelog:
+                            during_detect_image = time.time() - start_detect_image
+                            print('[detect.py]during_detect_image : {} ms'.format(float(during_detect_image*1000)))
                         cc+=1
                         loss = int(loss*100)
                         loss = float(loss/100.0)
-                        
-                        
+                        if timelog:
+                            start_annotator_box = time.time()
                         if save_img or save_crop or view_img:  # Add bbox to image
                             c = int(cls)  # integer class
-                            if c==0:
-                                if loss>LOSS and conf < 0.40:
-                                    annotator.box_label(xyxy, "line abnormal "+str(loss) + " " + str(conf.numpy()), color=(0,0,255))
+                            if c==0 or c==1:
+                                if loss>LOSS:
+                                    annotator.box_label(xyxy, "abnormal "+str(loss) + " " + str(conf.numpy()), color=(0,0,255))
                                 else:
-                                    annotator.box_label(xyxy, "line normal "+str(loss) + " " + str(conf.numpy()), color=(255,0,0))
-                    
+                                    annotator.box_label(xyxy, "normal "+str(loss) + " " + str(conf.numpy()), color=(255,0,0))
+                        if timelog:
+                            during_annotator_box  = time.time() - start_annotator_box
+                            print('[detect.py]during_annotator_box : {} ms'.format(float(during_annotator_box*1000)))
                         during_time_ganomaly = time.time() - start_time_ganomaly
                         during_time_ganomaly = int(during_time_ganomaly*1000)
                         
@@ -276,7 +293,8 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
                             print('ab-normal line--ab-normal line--ab-normal line--ab-normal line {}--{}, time: {} ms'.format(loss,loss,during_time_ganomaly))
                         else:
                             print('normal-normal-normal-normal-normal-normal-normal {}-- {}, time: {} ms'.format(loss,loss,during_time_ganomaly))
-                    
+                        t = tuple(x.t / seen * 1E3 for x in dt)  # speeds per image
+                        print(f'Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {(1, 3, *imgsz)}' % t)
                         #input()
                         
             # Stream results
@@ -314,6 +332,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
     # Print results
     t = tuple(x.t / seen * 1E3 for x in dt)  # speeds per image
     LOGGER.info(f'Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {(1, 3, *imgsz)}' % t)
+    
     if save_txt or save_img:
         s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
         LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}{s}")
@@ -351,7 +370,7 @@ def parse_opt():
     parser.add_argument('--dnn', action='store_true', help='use OpenCV DNN for ONNX inference')
     parser.add_argument('--vid-stride', type=int, default=1, help='video frame-rate stride')
     #========================================================================================
-    parser.add_argument('--isize', type=int, default=64, help='GANomaly input size')
+    parser.add_argument('--isize', type=int, default=32, help='GANomaly input size')
     parser.add_argument('--nz', type=int, default=100, help='GANomaly latent dim')
     parser.add_argument('--nc', type=int, default=3, help='GANomaly num of channels')
     parser.add_argument('--ndf', type=int, default=64, help='GANomaly number of discriminator filters')
@@ -367,6 +386,7 @@ def parse_opt():
     parser.add_argument('--beta1', type=float, default=0.5, help='GANomaly beta1 for Adam optimizer')
     parser.add_argument('--GANOMALY', action='store_true', help='enable GANomaly')
     parser.add_argument('--LOSS', type=float, default=4.0, help='GANomaly generator loss threshold')
+    parser.add_argument('--timelog', action='store_true', help='enable GANomaly time log')
     #========================================================================================
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
