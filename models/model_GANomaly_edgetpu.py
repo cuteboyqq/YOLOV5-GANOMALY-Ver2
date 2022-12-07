@@ -26,6 +26,7 @@ from pycoral.adapters import classify
 from PIL import Image
 from matplotlib import pyplot as plt
 
+import time
 #import tensorflow as tf
 
 class GANomaly_Detect():
@@ -34,6 +35,7 @@ class GANomaly_Detect():
                  model_file=r'G-uint8-20221104_edgetpu.tflite',
                  save_image=False,
                  show_log=False,
+                 show_detail_time_log=False,
                  tflite=False,
                  edgetpu=True,
                  isize=32):
@@ -46,6 +48,7 @@ class GANomaly_Detect():
         self.interpreter = self.get_interpreter()
         self.save_image = save_image
         self.show_log = show_log
+        self.show_detail_time_log = show_detail_time_log
         self.isize = isize
     def return_interpreter(self):
         return self.interpreter
@@ -124,7 +127,7 @@ class GANomaly_Detect():
         self.INFER=False
         self.ONLY_DETECT_ONE_IMAGE=True
         if self.interpreter is None:
-            print('interpreter is None, get interpreter now')
+            print('interpreter is None, get   now')
             interpreter = self.get_interpreter(w,self.tflite,self.edgetpu)
             self.interpreter.allocate_tensors()  # allocate
             self.input_details = self.interpreter.get_input_details()  # inputs
@@ -154,6 +157,8 @@ class GANomaly_Detect():
                 im = np.asarray(im)
                 self.input_img = im
             if self.USE_OPENCV:
+                if self.show_detail_time_log:
+                    start_image_preprocess = time.time()
                 #im = cv2.imread(im)
                 #im = cv2.resize(im, (self.isize, self.isize))
                 #self.input_img = im
@@ -170,8 +175,9 @@ class GANomaly_Detect():
                 im = im_ori.transpose((2,0,1))[::-1] #HWC to CHW , BGR to RGB
                 
                 #im = im_ori[::-1]
-                im = np.ascontiguousarray(im)
+                #im = np.ascontiguousarray(im)
                 im = np.transpose(im,[1,2,0])
+                #self.input_img = im
                 self.input_img = im
             #im = cv2.imread(im)
             #im = cv2.resize(im, (64, 64))
@@ -219,8 +225,19 @@ class GANomaly_Detect():
             #im = im.astype(np.uint8)
             if self.show_log:
                 print('after de-scale {}'.format(im))
+        if self.show_detail_time_log:
+            during_image_preprocess = time.time() - start_image_preprocess
+            print("[model_GANomaly_edgetpu.py]during_image_preprocess : {} ".format(float(during_image_preprocess*1000)))
+        #====================================================================================
+        
         self.interpreter.set_tensor(input['index'], im)
+        if self.show_detail_time_log:
+            start_interpreter_invoke = time.time()
         self.interpreter.invoke()
+        if self.show_detail_time_log:
+            during_interpreter_invoke = time.time() - start_interpreter_invoke
+            print("[model_GANomaly_edgetpu.py]during_interpreter_invoke : {} ".format(int(during_interpreter_invoke*1000)))
+        #=================================================================================================================
         y = []
         self.gen_img = None
         for output in self.output_details:
