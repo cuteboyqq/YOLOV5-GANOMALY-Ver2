@@ -95,7 +95,6 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
         beta1=0.5,
         GANOMALY=False, #use GANoamly defeat detection
         LOSS=4,
-        timelog=False
 ):
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
@@ -135,11 +134,10 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
         interpreter = ganomaly.load_model_tflite(w, tflite=True, edgetpu=False)
         '''
         print('isize : {}'.format(isize))
-        ganomaly = GANomaly_Detect(model_dir=r'/home/pi/Desktop/GANomaly-tf2/export_model/2022-12-07/multiple_models',
-                                    model_file=r'ckpt-32-nz100-ndf64-ngf64-20221207-prelu-upsample-G-int8_edgetpu.tflite',
+        ganomaly = GANomaly_Detect(model_dir=r'/home/ali/Desktop/GANomaly-tf2/export_model/2022-12-13/multiple_models',
+                                    model_file=r'ckpt-32-nz100-ndf64-ngf64-20221213-prelu-upsample-retrain-G-int8_edgetpu.tflite',
                                     save_image=False,
                                     show_log=False,
-                                    show_detail_time_log=False,
                                     tflite=False,
                                     edgetpu=True,
                                     isize=isize)
@@ -220,10 +218,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
                         with open(f'{txt_path}.txt', 'a') as f:
                             f.write(('%g ' * len(line)).rstrip() % line + '\n')
 
-                    if save_img or save_crop or view_img:  # Add bbox to image
-                        c = int(cls)  # integer class
-                        label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
-                        annotator.box_label(xyxy, label, color=colors(c, True))
+                    
                     if save_crop:
                         #Alister add 2022-11-08
                         #print('frame : {}'.format(int(frame)))
@@ -238,12 +233,10 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
                         start_time_ganomaly = time.time()
                         abnormal = 0
                         #imc2 = im0.copy()
-                        if timelog:
-                            start_crop_image = time.time()
+                        start_crop_image = time.time()
                         crop = get_crop_image(xyxy,imc, BGR=True)
-                        if timelog:
-                            during_crop_image = time.time() - start_crop_image
-                            print('[detect.py]during_crop_image : {} ms'.format(float(during_crop_image*1000)))
+                        during_crop_image = time.time() - start_crop_image
+                        print('[detect.py]during_crop_image : {} ms'.format(float(during_crop_image*1000)))
                         #crop = save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True, save=False)
                         #crop = cv2.resize(crop,(isize,isize),interpolation=cv2.INTER_LINEAR)
                         #crop = crop / 255.0
@@ -263,17 +256,15 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
                         w=r'ertertert'
                         #loss, gen_img = ganomaly.infer_cropimage_tflite(crop, w, interpreter, tflite=True, edgetpu=False)
                         #time.sleep(0.001)
-                        if timelog:
-                            start_detect_image = time.time()
+                        start_detect_image = time.time()
                         loss, gen_img = ganomaly.detect_image(w, crop, cnt=cc)
-                        if timelog:
-                            during_detect_image = time.time() - start_detect_image
-                            print('[detect.py]during_detect_image : {} ms'.format(float(during_detect_image*1000)))
+                        during_detect_image = time.time() - start_detect_image
+                        print('[detect.py]during_detect_image : {} ms'.format(float(during_detect_image*1000)))
                         cc+=1
                         loss = int(loss*100)
                         loss = float(loss/100.0)
-                        if timelog:
-                            start_annotator_box = time.time()
+                        
+                        start_annotator_box = time.time()
                         if save_img or save_crop or view_img:  # Add bbox to image
                             c = int(cls)  # integer class
                             if c==0 or c==1:
@@ -281,9 +272,8 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
                                     annotator.box_label(xyxy, "abnormal "+str(loss) + " " + str(conf.numpy()), color=(0,0,255))
                                 else:
                                     annotator.box_label(xyxy, "normal "+str(loss) + " " + str(conf.numpy()), color=(255,0,0))
-                        if timelog:
-                            during_annotator_box  = time.time() - start_annotator_box
-                            print('[detect.py]during_annotator_box : {} ms'.format(float(during_annotator_box*1000)))
+                        during_annotator_box  = time.time() - start_annotator_box
+                        print('[detect.py]during_annotator_box : {} ms'.format(float(during_annotator_box*1000)))
                         during_time_ganomaly = time.time() - start_time_ganomaly
                         during_time_ganomaly = int(during_time_ganomaly*1000)
                         
@@ -296,7 +286,12 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
                         t = tuple(x.t / seen * 1E3 for x in dt)  # speeds per image
                         print(f'Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {(1, 3, *imgsz)}' % t)
                         #input()
-                        
+                    '''  
+                    if save_img or save_crop or view_img:  # Add bbox to image
+                        c = int(cls)  # integer class
+                        label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
+                        annotator.box_label(xyxy, label, color=colors(c, True))
+                    ''' 
             # Stream results
             im0 = annotator.result()
             if view_img:
@@ -386,7 +381,6 @@ def parse_opt():
     parser.add_argument('--beta1', type=float, default=0.5, help='GANomaly beta1 for Adam optimizer')
     parser.add_argument('--GANOMALY', action='store_true', help='enable GANomaly')
     parser.add_argument('--LOSS', type=float, default=4.0, help='GANomaly generator loss threshold')
-    parser.add_argument('--timelog', action='store_true', help='enable GANomaly time log')
     #========================================================================================
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
