@@ -35,6 +35,7 @@ class GANomaly_Detect():
                  model_file=r'G-uint8-20221104_edgetpu.tflite',
                  save_image=False,
                  show_log=False,
+                 show_time_log=False,
                  tflite=False,
                  edgetpu=True,
                  isize=32):
@@ -48,6 +49,7 @@ class GANomaly_Detect():
         self.save_image = save_image
         self.show_log = show_log
         self.isize = isize
+        self.show_time_log = show_time_log
     def return_interpreter(self):
         return self.interpreter
     
@@ -155,7 +157,8 @@ class GANomaly_Detect():
                 im = np.asarray(im)
                 self.input_img = im
             if self.USE_OPENCV:
-                start_image_preprocess = time.time()
+                if self.show_time_log:
+                    start_image_preprocess = time.time()
                 #im = cv2.imread(im)
                 #im = cv2.resize(im, (self.isize, self.isize))
                 #self.input_img = im
@@ -222,16 +225,18 @@ class GANomaly_Detect():
             #im = im.astype(np.uint8)
             if self.show_log:
                 print('after de-scale {}'.format(im))
-        
-        during_image_preprocess = time.time() - start_image_preprocess
-        print("[model_GANomaly_edgetpu.py]during_image_preprocess : {} ".format(float(during_image_preprocess*1000)))
+        if self.show_time_log:
+            during_image_preprocess = time.time() - start_image_preprocess
+            print("[model_GANomaly_edgetpu.py]during_image_preprocess : {} ".format(float(during_image_preprocess*1000)))
         #====================================================================================
         
         self.interpreter.set_tensor(input['index'], im)
-        start_interpreter_invoke = time.time()
+        if self.show_time_log:
+            start_interpreter_invoke = time.time()
         self.interpreter.invoke()
-        during_interpreter_invoke = time.time() - start_interpreter_invoke
-        print("[model_GANomaly_edgetpu.py]during_interpreter_invoke : {} ".format(int(during_interpreter_invoke*1000)))
+        if self.show_time_log:
+            during_interpreter_invoke = time.time() - start_interpreter_invoke
+            print("[model_GANomaly_edgetpu.py]during_interpreter_invoke : {} ".format(int(during_interpreter_invoke*1000)))
         #=================================================================================================================
         y = []
         self.gen_img = None
