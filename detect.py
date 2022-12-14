@@ -96,7 +96,8 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
         GANOMALY=False, #use GANoamly defeat detection
         LOSS=4,
         ganomaly_save_img=False,
-        ganomaly_log=False
+        ganomaly_log=False,
+        ganomaly_time_log=False
 ):
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
@@ -140,6 +141,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
                                     model_file=r'ckpt-32-nz100-ndf64-ngf64-20221213-prelu-upsample-retrain-G-int8_edgetpu.tflite',
                                     save_image=ganomaly_save_img,
                                     show_log=ganomaly_log,
+                                    show_time_log=ganomaly_time_log,
                                     tflite=False,
                                     edgetpu=True,
                                     isize=isize)
@@ -237,8 +239,9 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
                         #imc2 = im0.copy()
                         start_crop_image = time.time()
                         crop = get_crop_image(xyxy,imc, BGR=True)
-                        during_crop_image = time.time() - start_crop_image
-                        print('[detect.py]during_crop_image : {} ms'.format(float(during_crop_image*1000)))
+                        if ganomaly_time_log:
+                            during_crop_image = time.time() - start_crop_image
+                            print('[detect.py]during_crop_image : {} ms'.format(float(during_crop_image*1000)))
                         #crop = save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True, save=False)
                         #crop = cv2.resize(crop,(isize,isize),interpolation=cv2.INTER_LINEAR)
                         #crop = crop / 255.0
@@ -260,8 +263,9 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
                         #time.sleep(0.001)
                         start_detect_image = time.time()
                         loss, gen_img = ganomaly.detect_image(w, crop, cnt=cc)
-                        during_detect_image = time.time() - start_detect_image
-                        print('[detect.py]during_detect_image : {} ms'.format(float(during_detect_image*1000)))
+                        if ganomaly_time_log:
+                            during_detect_image = time.time() - start_detect_image
+                            print('[detect.py]during_detect_image : {} ms'.format(float(during_detect_image*1000)))
                         cc+=1
                         loss = int(loss*100)
                         loss = float(loss/100.0)
@@ -274,8 +278,9 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
                                     annotator.box_label(xyxy, "abnormal "+str(loss) + " " + str(conf.numpy()), color=(0,0,255))
                                 else:
                                     annotator.box_label(xyxy, "normal "+str(loss) + " " + str(conf.numpy()), color=(255,0,0))
-                        during_annotator_box  = time.time() - start_annotator_box
-                        print('[detect.py]during_annotator_box : {} ms'.format(float(during_annotator_box*1000)))
+                        if ganomaly_time_log:
+                            during_annotator_box  = time.time() - start_annotator_box
+                            print('[detect.py]during_annotator_box : {} ms'.format(float(during_annotator_box*1000)))
                         during_time_ganomaly = time.time() - start_time_ganomaly
                         during_time_ganomaly = int(during_time_ganomaly*1000)
                         
@@ -343,7 +348,7 @@ def parse_opt():
     parser.add_argument('--weights', nargs='+', type=str, default=ROOT / 'yolov5s.pt', help='model path or triton URL')
     parser.add_argument('--source', type=str, default=ROOT / 'data/images', help='file/dir/URL/glob/screen/0(webcam)')
     parser.add_argument('--data', type=str, default=ROOT / 'data/coco128.yaml', help='(optional) dataset.yaml path')
-    parser.add_argument('--imgsz', '--img', '--img-size', nargs='+', type=int, default=[640], help='inference size h,w')
+    parser.add_argument('--imgsz', '--img', '--img-size', nargs='+', type=int, default=[192], help='inference size h,w')
     parser.add_argument('--conf-thres', type=float, default=0.25, help='confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.45, help='NMS IoU threshold')
     parser.add_argument('--max-det', type=int, default=1000, help='maximum detections per image')
@@ -386,6 +391,7 @@ def parse_opt():
     parser.add_argument('--ganomaly-save-img', action='store_true', help='save GANomaly images')
     parser.add_argument('--LOSS', type=float, default=4.0, help='GANomaly generator loss threshold')
     parser.add_argument('--ganomaly-log', action='store_true', help='save GANomaly logs')
+    parser.add_argument('--ganomaly-time-log', action='store_true', help='save GANomaly time logs')
     #========================================================================================
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
