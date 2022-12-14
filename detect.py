@@ -95,6 +95,8 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
         beta1=0.5,
         GANOMALY=False, #use GANoamly defeat detection
         LOSS=4,
+        ganomaly_save_img=False,
+        ganomaly_log=False
 ):
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
@@ -136,8 +138,8 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
         print('isize : {}'.format(isize))
         ganomaly = GANomaly_Detect(model_dir=r'/home/ali/Desktop/GANomaly-tf2/export_model/2022-12-13/multiple_models',
                                     model_file=r'ckpt-32-nz100-ndf64-ngf64-20221213-prelu-upsample-retrain-G-int8_edgetpu.tflite',
-                                    save_image=False,
-                                    show_log=False,
+                                    save_image=ganomaly_save_img,
+                                    show_log=ganomaly_log,
                                     tflite=False,
                                     edgetpu=True,
                                     isize=isize)
@@ -286,12 +288,13 @@ def run(weights=ROOT / 'yolov5s.pt',  # model path or triton URL
                         t = tuple(x.t / seen * 1E3 for x in dt)  # speeds per image
                         print(f'Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {(1, 3, *imgsz)}' % t)
                         #input()
-                    '''  
-                    if save_img or save_crop or view_img:  # Add bbox to image
-                        c = int(cls)  # integer class
-                        label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
-                        annotator.box_label(xyxy, label, color=colors(c, True))
-                    ''' 
+                    else:
+                          
+                        if save_img or save_crop or view_img:  # Add bbox to image
+                            c = int(cls)  # integer class
+                            label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
+                            annotator.box_label(xyxy, label, color=colors(c, True))
+                         
             # Stream results
             im0 = annotator.result()
             if view_img:
@@ -380,7 +383,9 @@ def parse_opt():
     parser.add_argument('--lr', type=float, default=2e-4, help='GANomaly learning rate')
     parser.add_argument('--beta1', type=float, default=0.5, help='GANomaly beta1 for Adam optimizer')
     parser.add_argument('--GANOMALY', action='store_true', help='enable GANomaly')
+    parser.add_argument('--ganomaly-save-img', action='store_true', help='save GANomaly images')
     parser.add_argument('--LOSS', type=float, default=4.0, help='GANomaly generator loss threshold')
+    parser.add_argument('--ganomaly-log', action='store_true', help='save GANomaly logs')
     #========================================================================================
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
